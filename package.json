@@ -1,0 +1,19 @@
+{
+  "name": "braktrad",
+  "version": "1.0.0",
+  "description": "Lightning-fast day/swing trading app with multi-model sentiment analysis",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "backend:dev": "cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "frontend:dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "setup": "npm run setup:backend && npm run setup:frontend",
+    "setup:backend": "cd backend && pip install -r requirements.txt",
+    "setup:frontend": "cd frontend && npm install"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^6.1.0",
+    "concurrently": "^8.2.2"
+  }
+}

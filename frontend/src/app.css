@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 59 130 246;
+    --color-success: 34 197 94;
+    --color-danger: 239 68 68;
+    --color-warning: 245 158 11;
+    --color-info: 14 165 233;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-gray-100;
+  }
+}
+
+@layer components {
+  /* Glass morphism effects */
+  .glass {
+    @apply backdrop-blur-md bg-white/80 dark:bg-dark-900/80 border border-gray-200/50 dark:border-dark-700/50;
+  }
+
+  .glass-hover {
+    @apply hover:bg-white/90 dark:hover:bg-dark-900/90 transition-colors;
+  }
+
+  /* Card styles */
+  .card {
+    @apply glass rounded-xl shadow-lg hover:shadow-xl transition-shadow;
+  }
+
+  .card-hover {
+    @apply hover:scale-[1.02] hover:shadow-2xl transition-all duration-300;
+  }
+
+  /* Button styles */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 
+           focus:ring-primary-500 dark:bg-primary-500 dark:hover:bg-primary-600;
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 
+           focus:ring-gray-500 dark:bg-dark-700 dark:text-gray-100 dark:hover:bg-dark-600;
+  }
+
+  .btn-success {
+    @apply btn bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-600
+           bg-white dark:bg-dark-800 text-gray-900 dark:text-gray-100
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           placeholder-gray-400 dark:placeholder-gray-500;
+  }
+
+  /* Sentiment colors */
+  .sentiment-positive {
+    @apply text-success-600 dark:text-success-400;
+  }
+
+  .sentiment-negative {
+    @apply text-danger-600 dark:text-danger-400;
+  }
+
+  .sentiment-neutral {
+    @apply text-blue-600 dark:text-blue-400;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply badge bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300;
+  }
+
+  .badge-danger {
+    @apply badge bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300;
+  }
+
+  .badge-info {
+    @apply badge bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300;
+  }
+
+  .badge-warning {
+    @apply badge bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300;
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply animate-pulse bg-gray-200 dark:bg-dark-700 rounded;
+  }
+
+  /* Scrollbar styles */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.gray.400') transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 dark:bg-dark-600 rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500 dark:bg-dark-500;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent;
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+
+  .glow-danger {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+}
+
+@layer utilities {
+  /* Animation delays */
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+
+  /* GPU acceleration */
+  .gpu {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Container queries polyfill */
+  @container (min-width: 640px) {
+    .container\:text-lg {
+      font-size: 1.125rem;
+    }
+  }
+}
