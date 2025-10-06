@@ -20,7 +20,7 @@ logger = structlog.get_logger()
 class SentimentAnalyzer:
     """Orchestrates multi-model sentiment analysis"""
     
-    SENTIMENT_PROMPT = """You are a short-term equities trader. Judge a single news headline's likely short-term impact on a specific company's share price. Be decisive, concise, and pragmatic.
+    SENTIMENT_PROMPT = """You are a quantitative news trader optimizing for alpha capture. Predict the MOST LIKELY directional price movement from this headline's information edge.
 
 Context:
 - Ticker: {ticker}
@@ -29,7 +29,6 @@ Context:
 - Industry: {industry}
 - Headline: {headline}
 - Source: {source}
-- Link: {link}
 - Headline timestamp: {headline_timestamp}
 - First seen: {first_seen_timestamp}
 - Market session: {market_session}
@@ -37,23 +36,32 @@ Context:
 - Is primary source: {is_primary_source}
 {market_context}
 
-Task:
-Output JSON with:
-- sentiment: exactly one of -1, 0, 1
-- horizon: one of "<1m", "1-5m", "5-30m", "same_day", "overnight", "1-3d"
-- confidence: 0.0 to 1.0
-- rationale: ≤240 chars; specific, non-hedged; no disclaimers
+DECISION FRAMEWORK:
+1. SURPRISE FACTOR (highest weight):
+   - Unexpected news > stronger reaction
+   - Confirms expectations > muted/no reaction
+   - Stale/priced-in (>30min old) > minimal edge
 
-Rules:
-- Focus on near-term impact (intraday to next 1-3 days)
-- Prefer primary/official sources; treat rumors or ambiguous items as 0 unless highly credible
-- If headline isn't about the specified company (or is generic/macro with unclear effect), return 0
-- Earnings beat/raise, positive guidance, approvals, major wins → usually +1
-- Misses, cuts, probes, data breaches, leadership exits → usually -1
-- M&A: target tends +1; acquirer often 0/-1 unless clearly accretive
-- If mixed/unclear or already widely known (old, repeated), 0 with lower confidence
+2. MAGNITUDE SIGNALS:
+   Strong positive (+1): Beat by >10%, FDA approval, major contract win, activist/buyout premium
+   Strong negative (-1): Miss by >10%, guidance cut, SEC probe, data breach, unexpected exec departure, downgrade
+   Neutral (0): In-line results, minor updates, speculation, reiterations
 
-Output only valid JSON, no other text."""
+3. TIMING DECAY:
+   - <15 min: Maximum edge (confidence 0.7-1.0)
+   - 15-60 min: Declining edge (confidence 0.4-0.7)
+   - >60 min: Mostly priced in (confidence 0.1-0.4)
+   - Pre-market/after-hours: Predict next session open
+
+Output JSON:
+{{
+  "sentiment": -1/0/1,
+  "horizon": "<1h"/"1-4h"/"same_day"/"next_open"/"24h",
+  "confidence": 0.0-1.0,
+  "rationale": "str <=275 chars"
+}}
+
+CRITICAL: Ignore long-term value. Predict only the immediate algorithmic and day-trader reaction."""
     
     def __init__(self):
         """Initialize sentiment analyzer"""
@@ -165,8 +173,8 @@ Output only valid JSON, no other text."""
         provider = self._get_provider(model)
         model_id = self._strip_provider_prefix(model)
         
-        # Rate limiting
-        rate_limiter_key = f"{provider}:{model}"
+        # Rate limiting (use consistent key with initialization)
+        rate_limiter_key = f"{provider}:{model_id}"
         if rate_limiter_key in self.rate_limiters:
             await self.rate_limiters[rate_limiter_key].acquire()
         
@@ -187,7 +195,8 @@ Output only valid JSON, no other text."""
             
             return {
                 "model_provider": provider,
-                "model_name": model,
+                # Store normalized model id without duplicated provider prefix
+                "model_name": model_id,
                 "sentiment": parsed["sentiment"],
                 "confidence": parsed["confidence"],
                 "rationale": parsed["rationale"],
@@ -218,11 +227,25 @@ Output only valid JSON, no other text."""
         response = await self.groq_client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a JSON-only response bot."},
+                {"role": "system", "content": """You are a high-frequency news analytics engine trained on millions of headline-to-price reaction patterns. Your output ONLY a single valid JSON prediction of immediate market impact.
+Core capabilities:
+- Pattern match headlines to historical price reactions with 87% directional accuracy
+- Identify information surprise relative to market expectations
+- Assess algorithmic trading and retail sentiment triggers
+- Calibrate confidence based on signal clarity and timing
+
+Your edge: You process news faster than human traders and recognize patterns they miss.
+
+Strictly follow these rules:
+1. No extraneous text: Do not include introductory text or commentary before or after the JSON.
+2. No markdown: Do not wrap the JSON in markdown code blocks (e.g., ```json ... ```).
+3. Schema adherence: The JSON object must precisely match the structure and keys requested in the user's prompt.
+4. Error protocol: If you cannot fulfill the user's request, you must still output a JSON object. This object should contain a single key: `error`, with a string value explaining why the request could not be completed."""
+},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=300,
+            max_tokens=5000,
             response_format={"type": "json_object"}
         )
         
@@ -244,11 +267,26 @@ Output only valid JSON, no other text."""
             json={
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": "You are a JSON-only response bot."},
+                    {"role": "system", "content":"""You are a high-frequency news analytics engine trained on millions of headline-to-price reaction patterns. Your output ONLY a single valid JSON prediction of immediate market impact.
+
+Core capabilities:
+- Pattern match headlines to historical price reactions with 87% directional accuracy
+- Identify information surprise relative to market expectations
+- Assess algorithmic trading and retail sentiment triggers
+- Calibrate confidence based on signal clarity and timing
+
+Your edge: You process news faster than human traders and recognize patterns they miss.
+
+Strictly follow these rules:
+1. No extraneous text: Do not include introductory text or commentary before or after the JSON.
+2. No markdown: Do not wrap the JSON in markdown code blocks (e.g., ```json ... ```).
+3. Schema adherence: The JSON object must precisely match the structure and keys requested in the user's prompt.
+4. Error protocol: If you cannot fulfill the user's request, you must still output a JSON object. This object should contain a single key: `error`, with a string value explaining why the request could not be completed."""
+},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.1,
-                "max_tokens": 300,
+                "max_tokens": 5000,
                 "response_format": {"type": "json_object"}
             }
         )
@@ -310,7 +348,7 @@ Market Context:
             raise ValueError(f"Invalid confidence value: {confidence}")
         
         # Validate horizon
-        valid_horizons = ["<1m", "1-5m", "5-30m", "same_day", "overnight", "1-3d"]
+        valid_horizons = ["<1h", "1-4h", "same_day", "next_open", "24h"]
         horizon = data.get("horizon", "same_day")
         if horizon not in valid_horizons:
             raise ValueError(f"Invalid horizon value: {horizon}")
@@ -321,8 +359,8 @@ Market Context:
             rationale = str(rationale)
         
         # Truncate if too long
-        if len(rationale) > 240:
-            rationale = rationale[:237] + "..."
+        if len(rationale) > 275:
+            rationale = rationale[:272] + "..."
         
         return {
             "sentiment": sentiment,
@@ -354,16 +392,17 @@ Market Context:
             majority_vote = 0
         
         # Model votes breakdown
-        model_votes = [
-            {
-                "model": f"{r['model_provider']}:{r['model_name']}",
+        model_votes = []
+        for r in results:
+            # r['model_name'] is normalized (without provider prefix). Compose explicit id once.
+            full_model_id = f"{r['model_provider']}:{r['model_name']}"
+            model_votes.append({
+                "model": full_model_id,
                 "sentiment": r["sentiment"],
                 "confidence": r["confidence"],
                 "horizon": r["horizon"],
                 "rationale": r["rationale"]
-            }
-            for r in results
-        ]
+            })
         
         return {
             "avg_sentiment": round(avg_sentiment, 3),

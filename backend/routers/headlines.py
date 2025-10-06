@@ -172,6 +172,10 @@ async def fetch_headlines_task_single(portfolio_id: int, db: AsyncSession, api_k
             # Persist
             stored = 0
             for data in unique_headlines:
+                # Remove non-model fields introduced during deduplication/enrichment
+                data.pop("has_duplicates", None)
+                data.pop("duplicate_count", None)
+
                 exists = await db.execute(
                     select(Headline).where(Headline.headline_hash == data["headline_hash"]) 
                 )
