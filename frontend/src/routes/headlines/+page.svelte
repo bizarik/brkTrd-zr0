@@ -13,6 +13,7 @@
 	let tickerOptions: Array<{ ticker: string; company: string }> = [];
 	let selectedPortfolio = '';
 	let sortBy = 'newest'; // Default sort
+	let pageSize = 50; // Number of headlines to display
 
 	onMount(async () => {
 		await loadTickers();
@@ -45,7 +46,8 @@
 			ticker: selectedTicker,
 			sector: selectedSector,
 			source: selectedSource,
-			hours: hoursFilter.toString()
+			hours: hoursFilter.toString(),
+			limit: pageSize.toString()
 		};
 		const pid = (selectedPortfolio || '').trim();
 		if (pid && /^\d+$/.test(pid)) filters.portfolio_id = pid;
@@ -167,8 +169,14 @@
 			<!-- Time Filter -->
 			<select class="input" bind:value={hoursFilter} on:change={loadHeadlines}>
 				<option value={1}>Last Hour</option>
+				<option value={2}>Last 2 Hours</option>
+				<option value={4}>Last 4 Hours</option>
+				<option value={8}>Last 8 Hours</option>
+				<option value={12}>Last 12 Hours</option>
 				<option value={6}>Last 6 Hours</option>
 				<option value={24}>Last 24 Hours</option>
+				<option value={36}>Last 36 Hours</option>
+				<option value={48}>Last 48 Hours</option>
 				<option value={72}>Last 3 Days</option>
 				<option value={168}>Last Week</option>
 			</select>
@@ -177,18 +185,36 @@
 			<input class="input" placeholder="Portfolio ID (optional)" bind:value={selectedPortfolio} />
 		</div>
 		
-		<!-- Sort Dropdown -->
-		<div class="mt-4 flex items-center gap-2">
-			<Filter class="h-4 w-4 text-gray-500" />
-			<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</span>
-			<select class="input w-48" bind:value={sortBy} aria-label="Sort headlines by">
-				<option value="newest">Newest First</option>
-				<option value="oldest">Oldest First</option>
-				<option value="ticker-asc">Ticker (A → Z)</option>
-				<option value="ticker-desc">Ticker (Z → A)</option>
-				<option value="source-asc">Source (A → Z)</option>
-				<option value="source-desc">Source (Z → A)</option>
-			</select>
+		<!-- Sort and Page Size Controls -->
+		<div class="mt-4 flex flex-wrap items-center gap-4">
+			<div class="flex items-center gap-2">
+				<Filter class="h-4 w-4 text-gray-500" />
+				<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</span>
+				<select class="input w-48" bind:value={sortBy} aria-label="Sort headlines by">
+					<option value="newest">Newest First</option>
+					<option value="oldest">Oldest First</option>
+					<option value="ticker-asc">Ticker (A → Z)</option>
+					<option value="ticker-desc">Ticker (Z → A)</option>
+					<option value="source-asc">Source (A → Z)</option>
+					<option value="source-desc">Source (Z → A)</option>
+				</select>
+			</div>
+			
+			<div class="flex items-center gap-2">
+				<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Show:</span>
+				<select class="input w-32" bind:value={pageSize} on:change={loadHeadlines} aria-label="Headlines per page">
+					<option value={50}>50</option>
+					<option value={100}>100</option>
+					<option value={200}>200</option>
+					<option value={500}>500</option>
+					<option value={1000}>1000</option>
+				</select>
+				<span class="text-sm text-gray-600 dark:text-gray-400">headlines</span>
+			</div>
+			
+			<div class="text-sm text-gray-600 dark:text-gray-400 ml-auto">
+				Showing {sortedHeadlines.length} of {$headlines.length} headlines
+			</div>
 		</div>
 	</div>
 

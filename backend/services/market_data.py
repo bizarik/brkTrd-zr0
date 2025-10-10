@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Headline, SentimentAggregate, MarketData, SentimentReturns
+from models import Headline, SentimentAggregate, MarketData, SentimentReturns
 
 
 def is_market_hours(dt: datetime) -> bool:

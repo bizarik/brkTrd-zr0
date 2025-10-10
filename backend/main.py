@@ -14,8 +14,8 @@ from models import Base, UserSettings
 from database import engine, get_db, AsyncSessionLocal
 from routers import (
     headlines, sentiment, analytics, opportunities, 
-    settings as settings_router, portfolio as portfolio_router
-    # returns as returns_router  # Temporarily disabled until migration is run
+    settings as settings_router, portfolio as portfolio_router,
+    returns as returns_router, database as database_router
 )
 from services.cache import CacheManager
 from services.scheduler import TaskScheduler
@@ -182,11 +182,16 @@ app.include_router(
     tags=["portfolio"]
 )
 
-# app.include_router(
-#     returns_router.router,
-#     prefix="/api/returns",
-#     tags=["returns"]
-# )
+app.include_router(
+    returns_router.router,
+    tags=["returns"]
+)
+
+app.include_router(
+    database_router.router,
+    prefix="/api/database",
+    tags=["database"]
+)
 
 
 # Health check endpoint

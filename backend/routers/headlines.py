@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 import structlog
@@ -126,6 +126,64 @@ async def fetch_headlines(
         }
 
 
+@router.post("/upload")
+async def upload_headlines(
+    file: UploadFile = File(...),
+    portfolio_id: int = Form(...),
+    dedupe: bool = Form(default=True),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload Finviz news export (CSV or JSON) and persist headlines.
+
+    Expects the same format returned by Finviz news_export.ashx. Provide the
+    target portfolio_id to attach to saved headlines.
+    """
+    try:
+        content_bytes = await file.read()
+        try:
+            text = content_bytes.decode("utf-8")
+        except Exception:
+            text = content_bytes.decode("latin-1", errors="ignore")
+
+        # Parse using the same logic as Finviz client export parser
+        client = FinvizClient(api_key="upload")  # dummy key; not used for parsing
+        headlines = client._parse_news_export(text, portfolio_id)  # type: ignore[attr-defined]
+
+        if not headlines:
+            return {"status": "ok", "fetched": 0, "stored": 0}
+
+        # Optionally deduplicate
+        to_persist = headlines
+        if dedupe:
+            deduplicator = HeadlineDeduplicator(threshold=settings.dedupe_threshold)
+            to_persist = deduplicator.deduplicate(headlines)
+
+        stored = 0
+        for data in to_persist:
+            # Ensure correct portfolio assignment
+            data["portfolio_id"] = portfolio_id
+            # Remove non-model flags if present
+            data.pop("has_duplicates", None)
+            data.pop("duplicate_count", None)
+            exists = await db.execute(
+                select(Headline).where(Headline.headline_hash == data["headline_hash"]) 
+            )
+            if exists.scalar_one_or_none():
+                continue
+            db.add(Headline(**data))
+            stored += 1
+
+        await db.commit()
+
+        logger.info("uploaded_headlines_persisted", portfolio_id=portfolio_id, uploaded=len(headlines), stored=stored)
+        return {"status": "ok", "fetched": len(headlines), "stored": stored}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("upload_headlines_error", error=str(e), exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to process upload: {str(e)}")
+
 async def fetch_headlines_task_single(portfolio_id: int, db: AsyncSession, api_key: str, return_result: bool = False):
     """Fetch once for a single portfolio via Finviz export. If return_result, returns counts."""
     try:
@@ -202,9 +260,10 @@ async def get_headlines(
     source: Optional[str] = None,
     portfolio_id: Optional[int] = Query(default=None),
     hours: int = Query(default=24, le=168),
-    limit: int = Query(default=50, le=200),
+    limit: int = Query(default=50, le=1000),
     offset: int = Query(default=0, ge=0),
     include_sentiment: bool = Query(default=True),
+    has_sentiment: Optional[bool] = Query(default=None),
     db: AsyncSession = Depends(get_db)
 ):
     """Get headlines with optional filters"""
@@ -235,6 +294,23 @@ async def get_headlines(
     
     # Exclude duplicates
     filters.append(Headline.is_duplicate == False)
+    
+    # Filter by sentiment presence
+    if has_sentiment is not None:
+        if has_sentiment:
+            # Only headlines with sentiment
+            filters.append(
+                select(SentimentAggregate).where(
+                    SentimentAggregate.headline_id == Headline.id
+                ).exists()
+            )
+        else:
+            # Only headlines without sentiment
+            filters.append(
+                ~select(SentimentAggregate).where(
+                    SentimentAggregate.headline_id == Headline.id
+                ).exists()
+            )
     
     if filters:
         query = query.where(and_(*filters))

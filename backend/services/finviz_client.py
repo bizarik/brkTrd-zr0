@@ -458,9 +458,17 @@ class FinvizClient:
             except Exception:
                 timestamp = None
         if not timestamp and isinstance(ts, str):
-            # Try ISO
+            # Try ISO format first
             try:
                 timestamp = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                # If ISO timestamp has no timezone info, assume EST/EDT
+                if timestamp.tzinfo is None:
+                    from datetime import timezone as tz
+                    month = timestamp.month
+                    is_edt = month in [3, 4, 5, 6, 7, 8, 9, 10]  # March-October (DST period)
+                    est_offset = -4 if is_edt else -5
+                    est_tz = tz(timedelta(hours=est_offset))
+                    timestamp = timestamp.replace(tzinfo=est_tz).astimezone(timezone.utc)
             except Exception:
                 # Fallback to existing parser
                 try:
@@ -653,19 +661,45 @@ class FinvizClient:
                 elif unit.startswith("day"):
                     return now - timedelta(days=value)
         
-        # Handle time only (today)
-        if re.match(r'^\d{1,2}:\d{2}(AM|PM)?$', time_str):
+        # Handle time only (today) - assume EST/EDT for market hours
+        time_match = re.match(r'^\d{1,2}:\d{2}(AM|PM)?$', time_str, re.IGNORECASE)
+        if time_match:
             # Parse time and combine with today's date
             try:
-                time = datetime.strptime(time_str, "%I:%M%p").time()
-                return datetime.combine(now.date(), time, tzinfo=timezone.utc)
-            except:
+                # Try 12-hour format first
+                if time_str[-2:].upper() in ['AM', 'PM']:
+                    time = datetime.strptime(time_str, "%I:%M%p").time()
+                else:
+                    # Try 24-hour format
+                    time = datetime.strptime(time_str, "%H:%M").time()
+                
+                # Assume EST/EDT for market times, then convert to UTC
+                from datetime import timezone as tz
+                # EST is UTC-5, EDT is UTC-4 (simplified: assume EDT during summer months)
+                month = now.month
+                is_edt = month in [3, 4, 5, 6, 7, 8, 9, 10]  # March-October (DST period)
+                est_offset = -4 if is_edt else -5  # EDT is UTC-4, EST is UTC-5
+                est_tz = tz(timedelta(hours=est_offset))
+                est_datetime = datetime.combine(now.date(), time, tzinfo=est_tz)
+                return est_datetime.astimezone(timezone.utc)
+            except Exception as e:
+                logger.debug("time_parse_error", time_str=time_str, error=str(e))
                 pass
         
-        # Handle full date/time
+        # Handle full date/time - assume EST/EDT for market times
         try:
-            return datetime.strptime(time_str, "%b %d, %Y %I:%M%p").replace(tzinfo=timezone.utc)
-        except:
+            parsed = datetime.strptime(time_str, "%b %d, %Y %I:%M%p")
+            # Assume EST/EDT for market times, then convert to UTC
+            from datetime import timezone as tz
+            # EST is UTC-5, EDT is UTC-4 (simplified: assume EDT during summer months)
+            month = parsed.month
+            is_edt = month in [3, 4, 5, 6, 7, 8, 9, 10]  # March-October (DST period)
+            est_offset = -4 if is_edt else -5  # EDT is UTC-4, EST is UTC-5
+            est_tz = tz(timedelta(hours=est_offset))
+            est_datetime = parsed.replace(tzinfo=est_tz)
+            return est_datetime.astimezone(timezone.utc)
+        except Exception as e:
+            logger.debug("full_datetime_parse_error", time_str=time_str, error=str(e))
             pass
         
         # Default to now

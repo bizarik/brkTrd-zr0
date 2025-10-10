@@ -356,59 +356,59 @@ class UserSettings(Base):
 
 
 # Temporarily disabled until migration is run
-# class SentimentReturns(Base):
-#     """Historical returns linked to sentiment analysis"""
-#     __tablename__ = "sentiment_returns"
-#     
-#     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     headline_id = Column(UUID(as_uuid=True), ForeignKey("headlines.id"), nullable=False)
-#     
-#     # Sentiment information
-#     sentiment_value = Column(Integer, nullable=False)  # -1, 0, 1
-#     sentiment_confidence = Column(Float, nullable=False)  # 0 to 1
-#     
-#     # Returns over different timeframes
-#     return_3h = Column(Float)  # 3 hours or end of trading day
-#     return_24h = Column(Float)  # 24 hours (trading days only)
-#     return_next_day = Column(Float)  # End of next trading day
-#     return_2d = Column(Float)  # End of 2 trading days
-#     return_3d = Column(Float)  # End of 3 trading days
-#     return_prev_1d = Column(Float)  # Previous trading day
-#     return_prev_2d = Column(Float)  # Two trading days prior
-#     
-#     # Price data points
-#     price_at_sentiment = Column(Float, nullable=False)  # Price when sentiment was recorded
-#     price_3h = Column(Float)  # Price at 3h mark
-#     price_24h = Column(Float)  # Price at 24h mark
-#     price_next_day = Column(Float)  # Price at next day close
-#     price_2d = Column(Float)  # Price at 2d mark
-#     price_3d = Column(Float)  # Price at 3d mark
-#     price_prev_1d = Column(Float)  # Previous day's price
-#     price_prev_2d = Column(Float)  # Two days prior price
-#     
-#     # Timestamps for each price point
-#     timestamp_at_sentiment = Column(DateTime(timezone=True), nullable=False)
-#     timestamp_3h = Column(DateTime(timezone=True))
-#     timestamp_24h = Column(DateTime(timezone=True))
-#     timestamp_next_day = Column(DateTime(timezone=True))
-#     timestamp_2d = Column(DateTime(timezone=True))
-#     timestamp_3d = Column(DateTime(timezone=True))
-#     timestamp_prev_1d = Column(DateTime(timezone=True))
-#     timestamp_prev_2d = Column(DateTime(timezone=True))
-#     
-#     # Metadata
-#     created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
-#     updated_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
-#     
-#     # Relationships
-#     headline = relationship("Headline", backref="sentiment_returns")
-#     
-#     __table_args__ = (
-#         Index("idx_sentiment_returns_headline", "headline_id"),
-#         Index("idx_sentiment_returns_sentiment", "sentiment_value", "sentiment_confidence"),
-#         CheckConstraint("sentiment_value IN (-1, 0, 1)", name="check_sentiment_returns_value"),
-#         CheckConstraint("sentiment_confidence >= 0 AND sentiment_confidence <= 1", name="check_sentiment_returns_confidence"),
-#     )
+class SentimentReturns(Base):
+    """Historical returns linked to sentiment analysis"""
+    __tablename__ = "sentiment_returns"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    headline_id = Column(UUID(as_uuid=True), ForeignKey("headlines.id"), nullable=False)
+    
+    # Sentiment information
+    sentiment_value = Column(Integer, nullable=False)  # -1, 0, 1
+    sentiment_confidence = Column(Float, nullable=False)  # 0 to 1
+    
+    # Returns over different timeframes
+    return_3h = Column(Float)  # 3 hours or end of trading day
+    return_24h = Column(Float)  # 24 hours (trading days only)
+    return_next_day = Column(Float)  # End of next trading day
+    return_2d = Column(Float)  # End of 2 trading days
+    return_3d = Column(Float)  # End of 3 trading days
+    return_prev_1d = Column(Float)  # Previous trading day
+    return_prev_2d = Column(Float)  # Two trading days prior
+    
+    # Price data points
+    price_at_sentiment = Column(Float, nullable=False)  # Price when sentiment was recorded
+    price_3h = Column(Float)  # Price at 3h mark
+    price_24h = Column(Float)  # Price at 24h mark
+    price_next_day = Column(Float)  # Price at next day close
+    price_2d = Column(Float)  # Price at 2d mark
+    price_3d = Column(Float)  # Price at 3d mark
+    price_prev_1d = Column(Float)  # Previous day's price
+    price_prev_2d = Column(Float)  # Two days prior price
+    
+    # Timestamps for each price point
+    timestamp_at_sentiment = Column(DateTime(timezone=True), nullable=False)
+    timestamp_3h = Column(DateTime(timezone=True))
+    timestamp_24h = Column(DateTime(timezone=True))
+    timestamp_next_day = Column(DateTime(timezone=True))
+    timestamp_2d = Column(DateTime(timezone=True))
+    timestamp_3d = Column(DateTime(timezone=True))
+    timestamp_prev_1d = Column(DateTime(timezone=True))
+    timestamp_prev_2d = Column(DateTime(timezone=True))
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    headline = relationship("Headline", backref="sentiment_returns")
+    
+    __table_args__ = (
+        Index("idx_sentiment_returns_headline", "headline_id"),
+        Index("idx_sentiment_returns_sentiment", "sentiment_value", "sentiment_confidence"),
+        CheckConstraint("sentiment_value IN (-1, 0, 1)", name="check_sentiment_returns_value"),
+        CheckConstraint("sentiment_confidence >= 0 AND sentiment_confidence <= 1", name="check_sentiment_returns_confidence"),
+    )
 
 
 class SystemLog(Base):

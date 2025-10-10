@@ -14,7 +14,8 @@
 		Bell,
 		RefreshCw,
 		Zap,
-		LineChart
+		LineChart,
+		DatabaseZap
 	} from 'lucide-svelte';
 	import { theme } from '$lib/stores/theme';
 	import { websocket } from '$lib/stores/websocket';
@@ -34,7 +35,7 @@
 
 	onMount(() => {
 		// Initialize theme
-		const savedTheme = localStorage.getItem('theme') || 'dark';
+		const savedTheme = (localStorage.getItem('theme') || 'dark') as 'light' | 'dark';
 		theme.set(savedTheme);
 		document.documentElement.classList.toggle('dark', savedTheme === 'dark');
 
@@ -70,6 +71,8 @@
 	<!-- Mobile sidebar backdrop -->
 	{#if sidebarOpen}
 		<div
+			role="button"
+			tabindex="-1"
 			class="fixed inset-0 z-40 bg-black/50 lg:hidden"
 			on:click={() => (sidebarOpen = false)}
 			on:keydown={(e) => e.key === 'Escape' && (sidebarOpen = false)}
@@ -110,6 +113,25 @@
 						<span>{item.name}</span>
 					</a>
 				{/each}
+				
+				<!-- Database Tools Section -->
+				<div class="pt-4">
+					<a
+						href="/database"
+						class="flex items-center space-x-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+						class:bg-primary-100={$page.url.pathname.includes('database')}
+						class:text-primary-900={$page.url.pathname.includes('database')}
+						class:dark:bg-primary-900/30={$page.url.pathname.includes('database')}
+						class:dark:text-primary-300={$page.url.pathname.includes('database')}
+						class:text-gray-600={!$page.url.pathname.includes('database')}
+						class:hover:bg-gray-100={!$page.url.pathname.includes('database')}
+						class:dark:text-gray-400={!$page.url.pathname.includes('database')}
+						class:dark:hover:bg-dark-800={!$page.url.pathname.includes('database')}
+					>
+						<DatabaseZap class="h-4 w-4" />
+						<span>Database Explorer</span>
+					</a>
+				</div>
 			</nav>
 
 			<!-- Footer -->

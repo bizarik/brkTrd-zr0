@@ -1,7 +1,7 @@
 """Portfolio holdings API router"""
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import structlog
@@ -188,4 +188,83 @@ async def refresh_holdings_task(
         if not external_session and db is not None:
             await db.close()
 
+
+@router.post("/upload")
+async def upload_holdings(
+    file: UploadFile = File(...),
+    portfolio_id: int = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload Finviz screener export CSV and upsert portfolio holdings.
+
+    Accepts the CSV as provided by elite.finviz.com/export.ashx (v=152 recommended).
+    """
+    try:
+        content_bytes = await file.read()
+        try:
+            text = content_bytes.decode("utf-8")
+        except Exception:
+            text = content_bytes.decode("latin-1", errors="ignore")
+
+        # Reuse FinvizClient mapping to ensure schema compatibility
+        client = FinvizClient(api_key="upload")  # dummy key for helpers
+        # Private map function expects dict rows; parse as CSV via pandas-like approach in client
+        from io import StringIO
+        import csv
+        f = StringIO(text)
+        reader = csv.DictReader(f)
+
+        items = []
+        for row in reader:
+            mapped = client._map_screener_row(row)  # type: ignore[attr-defined]
+            if mapped and mapped.get("ticker"):
+                items.append(mapped)
+
+        stored = 0
+        for item in items:
+            # Upsert per existing logic
+            result = await db.execute(
+                select(PortfolioHolding).where(
+                    (PortfolioHolding.portfolio_id == portfolio_id)
+                    & (PortfolioHolding.ticker == item["ticker"]) 
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.company = item.get("company") or existing.company
+                existing.sector = item.get("sector")
+                existing.industry = item.get("industry")
+                existing.exchange = item.get("exchange")
+                existing.pe = item.get("pe")
+                existing.beta = item.get("beta")
+                existing.volume = item.get("volume")
+                existing.price = item.get("price")
+                existing.change = item.get("change")
+            else:
+                db.add(
+                    PortfolioHolding(
+                        portfolio_id=portfolio_id,
+                        ticker=item.get("ticker"),
+                        company=item.get("company") or item.get("ticker"),
+                        sector=item.get("sector"),
+                        industry=item.get("industry"),
+                        exchange=item.get("exchange"),
+                        pe=item.get("pe"),
+                        beta=item.get("beta"),
+                        volume=item.get("volume"),
+                        price=item.get("price"),
+                        change=item.get("change"),
+                    )
+                )
+                stored += 1
+
+        await db.commit()
+        logger.info("uploaded_holdings_upserted", portfolio_id=portfolio_id, uploaded=len(items), stored=stored)
+        return {"status": "ok", "portfolio_id": portfolio_id, "uploaded": len(items), "stored": stored}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("upload_holdings_error", error=str(e), exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to process upload: {str(e)}")
 
