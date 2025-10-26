@@ -41,16 +41,20 @@
 			loading = true;
 			error = null;
 			
-			// Fetch all data in parallel
-			const [headlinesData, opportunitiesData, analyticsData] = await Promise.all([
-				headlines.fetch().catch(e => { console.error('Headlines fetch failed:', e); return []; }),
-				opportunities.fetch().catch(e => { console.error('Opportunities fetch failed:', e); return []; }),
-				Promise.all([
-					analytics.fetchSummary().catch(e => { console.error('Analytics summary failed:', e); return null; }),
-					analytics.fetchTopMovers().catch(e => { console.error('Top movers failed:', e); return null; }),
-					analytics.fetchTrends({ days: 7 }).catch(e => { console.error('Trends failed:', e); return null; })
-				])
-			]);
+					// Fetch all data in parallel
+		const [headlinesData, opportunitiesData, analyticsData] = await Promise.all([
+			headlines.fetch().catch(e => { console.error('Headlines fetch failed:', e); return []; }),
+			opportunities.fetch().catch(e => { console.error('Opportunities fetch failed:', e); return []; }),
+			Promise.all([
+				analytics.fetchSummary().catch(e => { console.error('Analytics summary failed:', e); return null; }),
+				analytics.fetchTopMovers().catch(e => { console.error('Top movers failed:', e); return null; }),
+				analytics.fetchTrends({ days: 7 }).catch(e => { console.error('Trends failed:', e); return null; }),
+				analytics.fetchScatterDaily().catch(e => { console.error('Scatter daily failed:', e); return null; }),
+				analytics.fetchScatterIntraday().catch(e => { console.error('Scatter intraday failed:', e); return null; }),
+				analytics.fetchScatterMomentum().catch(e => { console.error('Scatter momentum failed:', e); return null; }),
+				analytics.fetchWordCloud().catch(e => { console.error('Word cloud failed:', e); return null; })
+			])
+		]);
 			
 			// Calculate comprehensive stats
 			updateStats();

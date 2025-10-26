@@ -2,6 +2,7 @@
 
 from typing import Optional, List
 from datetime import datetime, timedelta
+from collections import defaultdict
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -255,6 +256,269 @@ async def get_top_movers(
         "filters": {
             "direction": direction,
             "hours": hours,
+            "limit": limit
+        }
+    }
+
+
+@router.get("/sentiment-scatter-daily")
+async def get_sentiment_scatter_daily(
+    hours: int = Query(default=24, le=168),
+    limit: int = Query(default=50, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Calculate sentiment change as: current sentiment (last 24h) vs previous day's sentiment (24-48h ago)
+    
+    Returns scatter plot data where:
+    - x-axis: Current average sentiment per ticker
+    - y-axis: Change in sentiment from previous day
+    """
+    now = datetime.utcnow()
+    
+    # Query current period (last 24h)
+    current_cutoff = now - timedelta(hours=hours)
+    current_query = select(
+        Headline.ticker,
+        Headline.company,
+        func.avg(SentimentAggregate.avg_sentiment).label("current_sentiment"),
+        func.avg(SentimentAggregate.avg_confidence).label("current_confidence"),
+        func.count(Headline.id).label("headline_count")
+    ).join(
+        SentimentAggregate
+    ).where(
+        Headline.headline_timestamp >= current_cutoff,
+        Headline.is_duplicate == False
+    ).group_by(
+        Headline.ticker,
+        Headline.company
+    )
+    
+    # Query previous period (24-48h ago for daily comparison)
+    prev_start = now - timedelta(hours=hours * 2)
+    prev_end = now - timedelta(hours=hours)
+    previous_query = select(
+        Headline.ticker,
+        func.avg(SentimentAggregate.avg_sentiment).label("previous_sentiment")
+    ).join(
+        SentimentAggregate
+    ).where(
+        Headline.headline_timestamp >= prev_start,
+        Headline.headline_timestamp < prev_end,
+        Headline.is_duplicate == False
+    ).group_by(
+        Headline.ticker
+    )
+    
+    # Execute both queries
+    current_result = await db.execute(current_query)
+    previous_result = await db.execute(previous_query)
+    
+    # Build dictionaries for easy lookup
+    current_data = {r.ticker: r for r in current_result}
+    previous_data = {r.ticker: r.previous_sentiment for r in previous_result}
+    
+    # Calculate sentiment changes
+    scatter_data = []
+    for ticker, current in current_data.items():
+        current_sentiment = round(current.current_sentiment, 3) if current.current_sentiment else 0.0
+        previous_sentiment = round(previous_data.get(ticker, 0.0), 3)
+        sentiment_change = round(current_sentiment - previous_sentiment, 3)
+        
+        scatter_data.append({
+            "ticker": ticker,
+            "company": current.company or ticker,
+            "current_sentiment": current_sentiment,
+            "sentiment_change": sentiment_change,
+            "headline_count": current.headline_count,
+            "current_confidence": round(current.current_confidence, 3) if current.current_confidence else 0.0
+        })
+    
+    # Sort by absolute sentiment change and limit
+    scatter_data.sort(key=lambda x: abs(x["sentiment_change"]), reverse=True)
+    scatter_data = scatter_data[:limit]
+    
+    return {
+        "data": scatter_data,
+        "filters": {
+            "timeframe": "daily",
+            "hours": hours,
+            "limit": limit
+        }
+    }
+
+
+@router.get("/sentiment-scatter-intraday")
+async def get_sentiment_scatter_intraday(
+    limit: int = Query(default=50, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Calculate intraday sentiment change: recent (last 6h) vs earlier today (6-12h ago)
+    
+    Returns scatter plot data showing intraday sentiment shifts
+    """
+    now = datetime.utcnow()
+    
+    # Query recent period (last 6 hours)
+    recent_query = select(
+        Headline.ticker,
+        Headline.company,
+        func.avg(SentimentAggregate.avg_sentiment).label("recent_sentiment"),
+        func.avg(SentimentAggregate.avg_confidence).label("recent_confidence"),
+        func.count(Headline.id).label("headline_count")
+    ).join(
+        SentimentAggregate
+    ).where(
+        Headline.headline_timestamp >= now - timedelta(hours=6),
+        Headline.is_duplicate == False
+    ).group_by(
+        Headline.ticker,
+        Headline.company
+    )
+    
+    # Query earlier period (6-12 hours ago)
+    earlier_query = select(
+        Headline.ticker,
+        func.avg(SentimentAggregate.avg_sentiment).label("earlier_sentiment")
+    ).join(
+        SentimentAggregate
+    ).where(
+        Headline.headline_timestamp >= now - timedelta(hours=12),
+        Headline.headline_timestamp < now - timedelta(hours=6),
+        Headline.is_duplicate == False
+    ).group_by(
+        Headline.ticker
+    )
+    
+    # Execute both queries
+    recent_result = await db.execute(recent_query)
+    earlier_result = await db.execute(earlier_query)
+    
+    # Build dictionaries
+    recent_data = {r.ticker: r for r in recent_result}
+    earlier_data = {r.ticker: r.earlier_sentiment for r in earlier_result}
+    
+    # Calculate sentiment changes
+    scatter_data = []
+    for ticker, recent in recent_data.items():
+        recent_sentiment = round(recent.recent_sentiment, 3) if recent.recent_sentiment else 0.0
+        earlier_sentiment = round(earlier_data.get(ticker, 0.0), 3)
+        sentiment_change = round(recent_sentiment - earlier_sentiment, 3)
+        
+        scatter_data.append({
+            "ticker": ticker,
+            "company": recent.company or ticker,
+            "current_sentiment": recent_sentiment,
+            "sentiment_change": sentiment_change,
+            "headline_count": recent.headline_count,
+            "recent_confidence": round(recent.recent_confidence, 3) if recent.recent_confidence else 0.0
+        })
+    
+    # Sort by absolute sentiment change and limit
+    scatter_data.sort(key=lambda x: abs(x["sentiment_change"]), reverse=True)
+    scatter_data = scatter_data[:limit]
+    
+    return {
+        "data": scatter_data,
+        "filters": {
+            "timeframe": "intraday",
+            "limit": limit
+        }
+    }
+
+
+@router.get("/sentiment-scatter-momentum")
+async def get_sentiment_scatter_momentum(
+    limit: int = Query(default=50, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Calculate sentiment momentum/velocity based on 3-day trend using linear regression approach
+    
+    Returns scatter plot data where momentum represents the rate of sentiment change
+    """
+    now = datetime.utcnow()
+    
+    # Query sentiment data from last 72 hours, grouped by ticker and 24h buckets
+    query = select(
+        Headline.ticker,
+        Headline.company,
+        func.date(Headline.headline_timestamp).label("date_bucket"),
+        func.avg(SentimentAggregate.avg_sentiment).label("sentiment"),
+        func.count(Headline.id).label("headline_count")
+    ).join(
+        SentimentAggregate
+    ).where(
+        Headline.headline_timestamp >= now - timedelta(hours=72),
+        Headline.is_duplicate == False
+    ).group_by(
+        Headline.ticker,
+        Headline.company,
+        func.date(Headline.headline_timestamp)
+    ).order_by(
+        Headline.ticker,
+        func.date(Headline.headline_timestamp)
+    )
+    
+    result = await db.execute(query)
+    data = result.all()
+    
+    # Group by ticker and calculate momentum (slope of sentiment over time)
+    ticker_data = defaultdict(list)
+    
+    for row in data:
+        ticker_data[row.ticker].append({
+            "company": row.company,
+            "date": row.date_bucket,
+            "sentiment": round(row.sentiment, 3) if row.sentiment else 0.0,
+            "headline_count": row.headline_count
+        })
+    
+    # Calculate momentum for each ticker (simple slope calculation)
+    scatter_data = []
+    for ticker, points in ticker_data.items():
+        if len(points) < 2:
+            # Need at least 2 data points to calculate momentum
+            continue
+        
+        # Sort by date
+        points.sort(key=lambda x: x["date"])
+        
+        # Calculate simple linear regression slope (momentum)
+        n = len(points)
+        sum_x = sum(range(n))
+        sum_y = sum(p["sentiment"] for p in points)
+        sum_xy = sum(i * p["sentiment"] for i, p in enumerate(points))
+        sum_x_sq = sum(i * i for i in range(n))
+        
+        # Slope formula: (n*sum(xy) - sum(x)*sum(y)) / (n*sum(x²) - sum(x)²)
+        if n * sum_x_sq - sum_x * sum_x != 0:
+            momentum = (n * sum_xy - sum_x * sum_y) / (n * sum_x_sq - sum_x * sum_x)
+        else:
+            momentum = 0.0
+        
+        current_sentiment = points[-1]["sentiment"]
+        total_headlines = sum(p["headline_count"] for p in points)
+        
+        scatter_data.append({
+            "ticker": ticker,
+            "company": points[0]["company"] or ticker,
+            "current_sentiment": current_sentiment,
+            "momentum": round(momentum, 3),
+            "headline_count": total_headlines,
+            "data_points": n
+        })
+    
+    # Sort by absolute momentum and limit
+    scatter_data.sort(key=lambda x: abs(x["momentum"]), reverse=True)
+    scatter_data = scatter_data[:limit]
+    
+    return {
+        "data": scatter_data,
+        "filters": {
+            "timeframe": "momentum",
+            "lookback_hours": 72,
             "limit": limit
         }
     }
