@@ -19,14 +19,13 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.post("/generate")
-async def generate_opportunities(
-    min_confidence: float = Query(default=0.6, ge=0, le=1),
-    min_models: int = Query(default=2, ge=1),
-    hours: int = Query(default=6, le=24),
-    db: AsyncSession = Depends(get_db)
-):
-    """Generate trading opportunities from recent sentiment analysis"""
+async def generate_opportunities_internal(
+    min_confidence: float,
+    min_models: int,
+    hours: int,
+    db: AsyncSession
+) -> dict:
+    """Internal function to generate trading opportunities from recent sentiment analysis"""
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Query headlines with strong sentiment signals
@@ -148,6 +147,22 @@ async def generate_opportunities(
             for opp in sorted(opportunities, key=lambda x: x.score, reverse=True)
         ]
     }
+
+
+@router.post("/generate")
+async def generate_opportunities(
+    min_confidence: float = Query(default=0.6, ge=0, le=1),
+    min_models: int = Query(default=2, ge=1),
+    hours: int = Query(default=6, le=24),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate trading opportunities from recent sentiment analysis (API endpoint)"""
+    return await generate_opportunities_internal(
+        min_confidence=min_confidence,
+        min_models=min_models,
+        hours=hours,
+        db=db
+    )
 
 
 @router.get("/")

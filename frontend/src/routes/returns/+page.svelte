@@ -102,8 +102,8 @@
 		error = null;
 
 		try {
-			// Get all headlines with sentiment for this ticker
-			const headlinesRes = await fetch(`/api/headlines?ticker=${selectedTicker}&has_sentiment=true&limit=100`);
+			// Get all headlines with sentiment for this ticker (last 7 days)
+			const headlinesRes = await fetch(`/api/headlines/?ticker=${selectedTicker}&has_sentiment=true&hours=168&limit=100`);
 			if (!headlinesRes.ok) {
 				throw new Error('Failed to fetch headlines');
 			}

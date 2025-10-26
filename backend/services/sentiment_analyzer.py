@@ -376,13 +376,14 @@ Market Context:
         
         sentiments = [r["sentiment"] for r in results]
         confidences = [r["confidence"] for r in results]
+        horizons = [r["horizon"] for r in results]
         
         # Calculate aggregates
         avg_sentiment = np.mean(sentiments)
         avg_confidence = np.mean(confidences)
         dispersion = np.std(sentiments) if len(sentiments) > 1 else 0.0
         
-        # Majority vote
+        # Majority vote for sentiment
         sentiment_sum = sum(sentiments)
         if sentiment_sum > 0:
             majority_vote = 1
@@ -390,6 +391,11 @@ Market Context:
             majority_vote = -1
         else:
             majority_vote = 0
+        
+        # Horizon vote - most common time horizon
+        from collections import Counter
+        horizon_counts = Counter(horizons)
+        horizon_vote = horizon_counts.most_common(1)[0][0] if horizon_counts else None
         
         # Model votes breakdown
         model_votes = []
@@ -409,6 +415,7 @@ Market Context:
             "avg_confidence": round(avg_confidence, 3),
             "dispersion": round(dispersion, 3),
             "majority_vote": majority_vote,
+            "horizon_vote": horizon_vote,
             "num_models": len(results),
             "model_votes": model_votes
         }

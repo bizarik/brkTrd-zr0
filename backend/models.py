@@ -135,6 +135,7 @@ class SentimentAggregate(Base):
     avg_confidence = Column(Float, nullable=False)  # 0 to 1
     dispersion = Column(Float, nullable=False)  # Standard deviation
     majority_vote = Column(Integer, nullable=False)  # -1, 0, 1
+    horizon_vote = Column(String(20), nullable=True)  # Most common time horizon
     
     # Model participation
     num_models = Column(Integer, nullable=False)

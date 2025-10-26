@@ -156,6 +156,7 @@ async def analyze_headline_task(
                 avg_confidence=aggregated["avg_confidence"],
                 dispersion=aggregated["dispersion"],
                 majority_vote=aggregated["majority_vote"],
+                horizon_vote=aggregated.get("horizon_vote"),
                 num_models=aggregated["num_models"],
                 model_votes=aggregated["model_votes"]
             )
@@ -179,12 +180,47 @@ async def analyze_headline_task(
         )
 
 
+async def generate_opportunities_after_analysis(headline_count: int):
+    """Background task to generate opportunities after sentiment analysis completes"""
+    try:
+        # Wait a bit to ensure all sentiment analyses have completed and committed
+        import asyncio
+        await asyncio.sleep(2 + (headline_count * 0.5))  # Scale wait time with headline count
+        
+        # Import here to avoid circular dependencies
+        from database import AsyncSessionLocal
+        from routers.opportunities import generate_opportunities_internal
+        
+        # Generate opportunities using a new database session
+        async with AsyncSessionLocal() as db:
+            result = await generate_opportunities_internal(
+                min_confidence=0.6,
+                min_models=2,
+                hours=6,
+                db=db
+            )
+            
+            logger.info(
+                "auto_generate_opportunities_complete",
+                status=result.get("status"),
+                count=result.get("count", 0),
+                trigger="sentiment_analysis"
+            )
+    except Exception as e:
+        logger.error(
+            "auto_generate_opportunities_error",
+            error=str(e),
+            exc_info=True
+        )
+
+
 @router.post("/analyze/batch")
 async def analyze_batch_sentiments(
     background_tasks: BackgroundTasks,
     headline_ids: Optional[List[str]] = None,
     hours: int = 1,
     models: Optional[List[str]] = None,
+    auto_generate_opportunities: bool = True,
     db: AsyncSession = Depends(get_db)
 ):
     """Analyze sentiment for multiple headlines"""
@@ -239,11 +275,19 @@ async def analyze_batch_sentiments(
             db
         )
     
+    # Schedule opportunity generation after analysis completes
+    if auto_generate_opportunities and len(headlines) > 0:
+        background_tasks.add_task(
+            generate_opportunities_after_analysis,
+            len(headlines)
+        )
+    
     return {
         "status": "analyzing",
         "count": len(headlines),
         "models": models,
-        "message": f"Sentiment analysis initiated for {len(headlines)} headlines"
+        "message": f"Sentiment analysis initiated for {len(headlines)} headlines",
+        "auto_generate_opportunities": auto_generate_opportunities
     }
 
 
@@ -253,6 +297,7 @@ async def analyze_recent(
     last_n: Optional[int] = None,
     hours: Optional[int] = None,
     models: Optional[List[str]] = None,
+    auto_generate_opportunities: bool = True,
     db: AsyncSession = Depends(get_db)
 ):
     """On-demand endpoint to analyze either last N headlines or last N hours (unanalyzed only)."""
@@ -301,11 +346,19 @@ async def analyze_recent(
     for headline in headlines:
         background_tasks.add_task(analyze_headline_task, headline, models, db)
 
+    # Schedule opportunity generation after analysis completes
+    if auto_generate_opportunities and len(headlines) > 0:
+        background_tasks.add_task(
+            generate_opportunities_after_analysis,
+            len(headlines)
+        )
+
     return {
         "status": "analyzing",
         "count": len(headlines),
         "models": models,
-        "message": f"Initiated analysis for {len(headlines)} headlines"
+        "message": f"Initiated analysis for {len(headlines)} headlines",
+        "auto_generate_opportunities": auto_generate_opportunities
     }
 
 

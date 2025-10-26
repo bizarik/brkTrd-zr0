@@ -114,24 +114,19 @@
 					</a>
 				{/each}
 				
-				<!-- Database Tools Section -->
-				<div class="pt-4">
-					<a
-						href="/database"
-						class="flex items-center space-x-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
-						class:bg-primary-100={$page.url.pathname.includes('database')}
-						class:text-primary-900={$page.url.pathname.includes('database')}
-						class:dark:bg-primary-900/30={$page.url.pathname.includes('database')}
-						class:dark:text-primary-300={$page.url.pathname.includes('database')}
-						class:text-gray-600={!$page.url.pathname.includes('database')}
-						class:hover:bg-gray-100={!$page.url.pathname.includes('database')}
-						class:dark:text-gray-400={!$page.url.pathname.includes('database')}
-						class:dark:hover:bg-dark-800={!$page.url.pathname.includes('database')}
-					>
-						<DatabaseZap class="h-4 w-4" />
-						<span>Database Explorer</span>
-					</a>
-				</div>
+			<!-- Database Tools Section -->
+			<div class="pt-4">
+				<a
+					href="/database"
+					class="flex items-center space-x-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors
+					       {$page.url.pathname.includes('database')
+						? 'bg-primary-100 text-primary-900 dark:bg-primary-900/30 dark:text-primary-300'
+						: 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-800'}"
+				>
+					<DatabaseZap class="h-4 w-4" />
+					<span>Database Explorer</span>
+				</a>
+			</div>
 			</nav>
 
 			<!-- Footer -->

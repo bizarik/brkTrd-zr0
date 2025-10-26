@@ -30,9 +30,8 @@ class TaskScheduler:
             self._run_periodically(self._cleanup_task, 3600)  # Every hour
         )
         
-        self.tasks["generate_opportunities"] = asyncio.create_task(
-            self._run_periodically(self._generate_opportunities_task, 600)  # Every 10 minutes
-        )
+        # Note: opportunities are now generated on-demand (user trigger or after sentiment analysis)
+        # No automatic periodic generation
         
         logger.info("scheduler_started", tasks=list(self.tasks.keys()))
     
@@ -84,12 +83,4 @@ class TaskScheduler:
         
         # Clean up old headlines, expired opportunities, etc.
         # This would call the actual cleanup logic
-        pass
-    
-    async def _generate_opportunities_task(self):
-        """Generate trading opportunities"""
-        logger.info("scheduled_generate_opportunities_start")
-        
-        # Generate new opportunities based on recent sentiment
-        # This would call the actual generation logic
         pass

@@ -65,9 +65,54 @@ async def get_historical_returns(
     db: AsyncSession = Depends(get_db)
 ):
     """Get historical returns data for a ticker"""
-    # TODO: Implement historical returns endpoint
-    # This will be implemented when we add actual trading returns tracking
-    pass
+    from datetime import datetime, timedelta
+    
+    # Calculate cutoff date
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    
+    # Get market data for this ticker
+    result = await db.execute(
+        select(MarketData)
+        .where(
+            and_(
+                MarketData.ticker == ticker.upper(),
+                MarketData.timestamp >= cutoff
+            )
+        )
+        .order_by(MarketData.timestamp.desc())
+    )
+    
+    market_data_rows = result.scalars().all()
+    
+    if not market_data_rows:
+        return {
+            "ticker": ticker,
+            "returns": [],
+            "message": "No market data available for this ticker"
+        }
+    
+    # Format returns data
+    returns = []
+    for md in market_data_rows:
+        returns.append({
+            "timestamp": md.timestamp.isoformat(),
+            "price": md.price,
+            "return_5m": md.return_5m,
+            "return_30m": md.return_30m,
+            "return_1d": md.return_1d,
+            "volume": md.volume,
+            "volume_rel": md.volume_rel,
+            "volatility_5m": md.volatility_5m,
+            "volatility_30m": md.volatility_30m,
+            "volatility_1d": md.volatility_1d
+        })
+    
+    return {
+        "ticker": ticker,
+        "returns": returns,
+        "count": len(returns),
+        "days": days
+    }
 
 
 @router.get("/sentiment/{headline_id}")

@@ -18,7 +18,7 @@ router = APIRouter()
 
 class QueryRequest(BaseModel):
     sql: str
-    limit: Optional[int] = 100
+    limit: Optional[int] = None  # None = no limit, user controls via SQL
 
 
 @router.get("/schema")
@@ -85,7 +85,6 @@ async def execute_query(
     """Execute a read-only SQL query"""
     try:
         sql = request.sql
-        limit = min(request.limit or 100, 1000)
         
         # Validate query is read-only
         sql_clean = sql.strip().upper()
@@ -103,9 +102,9 @@ async def execute_query(
                     detail=f"Query contains forbidden keyword: {keyword}. Only SELECT queries are allowed."
                 )
         
-        # Add LIMIT if not present (for safety)
-        if 'LIMIT' not in sql_clean:
-            sql = f"{sql.rstrip(';')} LIMIT {limit}"
+        # Only add LIMIT if explicitly requested via the limit parameter AND query doesn't have one
+        if request.limit is not None and 'LIMIT' not in sql_clean:
+            sql = f"{sql.rstrip(';')} LIMIT {request.limit}"
         
         # Execute query
         result = await db.execute(text(sql))

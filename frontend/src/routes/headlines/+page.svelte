@@ -9,7 +9,7 @@
 	let selectedTicker = '';
 	let selectedSector = '';
 	let selectedSource = '';
-	let hoursFilter = 24;
+	let hoursFilter = 168; // 7 days
 	let tickerOptions: Array<{ ticker: string; company: string }> = [];
 	let selectedPortfolio = '';
 	let sortBy = 'newest'; // Default sort
@@ -67,14 +67,47 @@
 	async function analyzeSentiment() {
 		loading = true;
 		try {
-			// Trigger sentiment analysis for recent headlines
-			await fetch('/api/sentiment/analyze/recent?hours=24', { method: 'POST' });
-			// Wait a bit for analysis to start
+			// Get IDs of headlines currently visible on the page that don't have sentiment yet
+			const headlinesToAnalyze = sortedHeadlines
+				.filter(h => !h.sentiment) // Only headlines without sentiment analysis
+				.map(h => h.id);
+			
+			if (headlinesToAnalyze.length === 0) {
+				alert('All visible headlines already have sentiment analysis!');
+				loading = false;
+				return;
+			}
+			
+			// Confirm with user
+			const confirmed = confirm(
+				`Analyze ${headlinesToAnalyze.length} headline(s) currently visible on this page?\n\n` +
+				`This will use API credits based on your selected models.`
+			);
+			
+			if (!confirmed) {
+				loading = false;
+				return;
+			}
+			
+			// Trigger sentiment analysis for specific headlines
+			const response = await fetch('/api/sentiment/analyze/batch', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ headline_ids: headlinesToAnalyze })
+			});
+			
+			const result = await response.json();
+			
+			// Wait for analysis to process
 			await new Promise((r) => setTimeout(r, 2000));
-			// Reload headlines to show any updated sentiment
+			
+			// Reload headlines to show updated sentiment
 			await loadHeadlines();
+			
+			alert(`Analysis initiated for ${result.count || headlinesToAnalyze.length} headline(s)!`);
 		} catch (e) {
 			console.error('Failed to analyze sentiment:', e);
+			alert('Failed to analyze sentiment. Please try again.');
 		}
 		loading = false;
 	}
@@ -104,6 +137,8 @@
 				return 0;
 		}
 	});
+
+	$: unanalyzedCount = sortedHeadlines.filter(h => !h.sentiment).length;
 </script>
 
 <div class="space-y-6">
@@ -119,10 +154,15 @@
 			<button
 				class="btn-secondary flex items-center gap-2"
 				on:click={analyzeSentiment}
-				disabled={loading}
+				disabled={loading || unanalyzedCount === 0}
+				title="Analyze sentiment for headlines currently visible on this page"
 			>
 				<Brain class="h-4 w-4" />
-				Analyze Sentiment
+				{#if unanalyzedCount > 0}
+					Analyze Visible ({unanalyzedCount})
+				{:else}
+					All Analyzed ✓
+				{/if}
 			</button>
 			<button
 				class="btn-primary flex items-center gap-2"
